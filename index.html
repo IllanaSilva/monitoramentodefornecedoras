@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoramento de Fornecedoras — iGREEN</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#060c18;--bg2:#0a1220;--bg3:#0f1a2e;--bg4:#152238;--bg5:#1b2d47;
+  --bdr:rgba(79,195,247,0.12);--bdr2:rgba(79,195,247,0.25);--bdr3:rgba(79,195,247,0.45);
+  --text:#ddeeff;--text2:#7aafd4;--text3:#3a6080;
+  --green:#38b450;--green2:#2e9040;--green3:#1a5225;--green-neon:#AEEA00;--blue:#4FC3F7;
+  --yellow:#c8a832;--red:#c84040;--orange:#c87028;--purple:#7060c0;
+  --accent:#4FC3F7;--accent2:#2196F3;
+  --r:10px;--rsm:6px;--tr:0.15s ease;
+}
+body.theme-light{
+  --bg:#f4f6f9;--bg2:#ffffff;--bg3:#eef1f6;--bg4:#e5e9f0;--bg5:#d6dbe4;
+  --bdr:rgba(20,30,50,0.08);--bdr2:rgba(20,30,50,0.16);--bdr3:rgba(20,30,50,0.3);
+  --text:#16202e;--text2:#42536b;--text3:#8892a3;
+  --green:#2e9040;--green2:#237532;--green3:#e1f0e0;--green-neon:#5c8a00;--blue:#1976d2;
+  --yellow:#a3811f;--red:#b8342f;--orange:#a2591b;--purple:#5b4fa3;
+  --accent:#1976d2;--accent2:#0d5bab;
+}
+body,body *{transition:background-color var(--tr),border-color var(--tr),color var(--tr)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:99px}
+
+/* ===== LOGIN ===== */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.login-box{width:340px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:28px}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.login-logo .ic{width:34px;height:34px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--bg)}
+.login-title{font-size:15px;font-weight:700}
+.login-sub{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.f-label{font-size:11px;color:var(--text2);margin:14px 0 6px}
+.f-input{width:100%;padding:10px 12px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rsm);color:var(--text);font-size:13px}
+.f-input:focus{outline:none;border-color:var(--accent)}
+.f-btn{width:100%;margin-top:18px;padding:10px;background:var(--green);border:none;border-radius:var(--rsm);color:var(--bg);font-weight:600;cursor:pointer;font-size:13px}
+.f-btn:hover{background:var(--green2)}
+.f-err{margin-top:10px;font-size:12px;color:var(--red);display:none}
+
+/* ===== APP SHELL ===== */
+#app{display:none}
+.app{display:flex;min-height:100vh}
+.sidebar{width:230px;height:100vh;background:var(--bg2);border-right:1px solid var(--bdr);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow:hidden}
+.main{margin-left:230px;flex:1;min-height:100vh}
+.logo{padding:18px 16px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.logo-row{display:flex;align-items:center;gap:10px}
+.logo-icon{width:30px;height:30px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;color:var(--bg);font-size:13px}
+.logo-name{font-size:14px;font-weight:700}
+.logo-sub{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.nav{flex:1;min-height:0;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:1px}
+.nav-sec{font-size:9px;font-weight:600;color:var(--text3);letter-spacing:1px;text-transform:uppercase;padding:10px 8px 4px;margin-top:4px}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--rsm);cursor:pointer;color:var(--text3);font-size:12px;font-weight:500;border:none;background:none;width:100%;text-align:left}
+.nav-btn:hover{background:var(--bg4);color:var(--text2)}
+.nav-btn.active{background:var(--green3);color:var(--green);border:1px solid var(--bdr2)}
+.user-box{padding:12px 14px;border-top:1px solid var(--bdr);font-size:11px;color:var(--text3);flex-shrink:0}
+.logout-btn{margin-top:8px;width:100%;padding:7px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rsm);color:var(--text2);cursor:pointer;font-size:11px}
+
+.content{padding:28px 32px;max-width:1240px}
+.pg-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.pg-sub{font-size:12px;color:var(--text3);margin-bottom:20px;font-family:'JetBrains Mono',monospace}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px 16px}
+.kpi .v{font-size:22px;font-weight:700;color:var(--accent)}
+.kpi .l{font-size:11px;color:var(--text3);margin-top:2px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.f-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;cursor:pointer;transition:var(--tr)}
+.f-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.f-card .name{font-weight:700;font-size:13px;margin-bottom:6px}
+.f-card .n{font-size:20px;font-weight:700;color:var(--green)}
+.f-card .l{font-size:10px;color:var(--text3);margin-top:2px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px}
+.bar-row .lbl{width:120px;flex-shrink:0;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;background:var(--bg3);border-radius:99px;height:10px;overflow:hidden}
+.bar-fill{height:100%;background:var(--green);border-radius:99px}
+.bar-val{width:46px;text-align:right;color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:11px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.s-input,.sel{padding:8px 10px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rsm);color:var(--text);font-size:12px}
+.btn{padding:8px 14px;border-radius:var(--rsm);border:1px solid var(--bdr2);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px}
+.btn-primary{background:var(--green);color:var(--bg);border-color:var(--green);font-weight:600}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--bdr);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:10px 12px;background:var(--bg3);color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;white-space:nowrap}
+td{padding:9px 12px;border-top:1px solid var(--bdr);color:var(--text)}
+tr:hover td{background:var(--bg4)}
+.back-btn{display:flex;align-items:center;gap:6px;background:none;border:none;color:var(--text2);cursor:pointer;font-size:12px;margin-bottom:14px}
+.badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:600;background:var(--bg4);color:var(--text2)}
+.placeholder{padding:40px;text-align:center;color:var(--text3);font-size:13px;border:1px dashed var(--bdr2);border-radius:var(--r)}
+.upload-box{border:1px dashed var(--bdr2);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.upload-box input[type=file]{font-size:12px;color:var(--text2)}
+.tag{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.resp-err{font-size:11px;color:var(--red);margin-top:4px;display:none}
+#theme-toggle{position:fixed;top:16px;right:16px;z-index:100;width:36px;height:36px;border-radius:50%;background:var(--bg3);border:1px solid var(--bdr2);color:var(--text2);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+#theme-toggle:hover{border-color:var(--accent)}
+
+/* ===== HOME (início) ===== */
+.home-banner{background:linear-gradient(135deg,rgba(79,195,247,.08),rgba(174,234,0,.05));border:1px solid var(--bdr2);border-radius:14px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.home-banner .t{font-size:17px;font-weight:700;margin-bottom:4px}
+.home-banner .s{font-size:12px;color:var(--text2)}
+.section-hd{font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-hd .line{height:1px;flex:1;background:var(--bdr)}
+.quick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin-bottom:28px}
+.quick-btn{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;font-family:inherit}
+.quick-btn:hover{border-color:var(--accent);background:var(--bg3)}
+.quick-btn .lbl{font-size:11px;font-weight:700;color:var(--text)}
+.quick-btn .setor{font-size:10px;color:var(--text3);margin-top:3px}
+.rank-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:760px){.rank-cols{grid-template-columns:1fr}}
+.rank-col-title{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.rank-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--rsm);font-size:12px}
+.rank-row:nth-child(odd){background:var(--bg2)}
+.rank-pos{width:20px;color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:11px}
+.rank-name{flex:1;font-weight:600}
+.rank-score{color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:11px}
+
+/* ===== VISÃO COMBINADA + SPLIT POR EQUIPE ===== */
+.team-split{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:8px}
+@media (max-width:900px){.team-split{grid-template-columns:1fr}}
+.team-block{border:1px solid var(--bdr);border-radius:var(--r);padding:16px}
+.team-block-hd{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+</style>
+</head>
+<body>
+<button id="theme-toggle" onclick="toggleTheme()" title="Alternar modo claro/escuro">🌙</button>
+
+<!-- ===================== LOGIN (senha única) ===================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="ic">iG</div>
+      <div>
+        <div class="login-title">Monitoramento de Fornecedoras</div>
+        <div class="login-sub">// iGREEN ENERGY</div>
+      </div>
+    </div>
+    <div class="f-label">Senha de acesso</div>
+    <input class="f-input" type="password" id="gate-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doGateLogin()">
+    <button class="f-btn" onclick="doGateLogin()">Entrar</button>
+    <div class="f-err" id="gate-err"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <div class="app">
+    <div class="sidebar">
+      <div class="logo">
+        <div class="logo-row">
+          <div class="logo-icon">iG</div>
+          <div>
+            <div class="logo-name">Monitoramento</div>
+            <div class="logo-sub">// fornecedoras</div>
+          </div>
+        </div>
+      </div>
+      <div class="nav" id="nav"></div>
+      <div class="user-box">
+        <span class="tag">modo visualização — senha compartilhada</span>
+        <button class="logout-btn" onclick="doGateLogout()">Sair</button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="content" id="page-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   0. TEMA CLARO / ESCURO
+   ============================================================ */
+function applyTheme(mode){
+  document.body.classList.toggle('theme-light', mode === 'light');
+  document.getElementById('theme-toggle').textContent = mode === 'light' ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  const current = localStorage.getItem('igreen_theme') === 'light' ? 'light' : 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  localStorage.setItem('igreen_theme', next);
+  applyTheme(next);
+}
+applyTheme(localStorage.getItem('igreen_theme') === 'light' ? 'light' : 'dark');
+
+/* ============================================================
+   1. CONFIGURAÇÃO DO FIREBASE
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCRsllTYwx6m4eu0ZLTU54pWWFdbuoTK8k",
+  authDomain: "monitoramento-de-fornecedoras.firebaseapp.com",
+  projectId: "monitoramento-de-fornecedoras",
+  storageBucket: "monitoramento-de-fornecedoras.firebasestorage.app",
+  messagingSenderId: "467362278382",
+  appId: "1:467362278382:web:3b75414ed0d127e410fcff"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* ============================================================
+   2. ESTRUTURA ORGANIZACIONAL
+   ============================================================ */
+const SUPERADMINS = [
+  "guilherme.valentim@igreenenergy.com.br",
+  "raul.santana@igreenenergy.com.br",
+  "pedro.octavio@igreenenergy.com.br",
+  "paulo.alcantara@igreenenergy.com.br",
+  "andressa.borba@igreenenergy.com.br"
+];
+
+const TEAMS = {
+  paulo: {
+    label: 'Equipe Paulo',
+    lead: 'paulo.alcantara@igreenenergy.com.br',
+    fornecedoras: ['COTESA','SUNCLICK','COMERC','THOPEN','FARO','ATUA','VANTAGE','BOM FUTURO','GENIAL','IGREEN','MONCARLO','ULTRA'],
+    setores: {
+      boletos_api: {people:['Pedro Paulo Rodrigues','Lavínia Veloso'], emails:['pedropaulo.rodrigues@igreenenergy.com.br','lavinia.veloso@igreenenergy.com.br']},
+      bases: {people:['Samuel Claudino','Illana Silva'], emails:['samuel.claudino@igreenenergy.com.br','illana.silva@igreenenergy.com.br']},
+      finalizados: {people:['Samuel Claudino'], emails:['samuel.claudino@igreenenergy.com.br']},
+      devolutivas: {people:['Nathalie Kristine','Gabriela Souza'], emails:['nathalie.rezende@igreenenergy.com.br','gabriela.souza@igreenenergy.com.br']},
+      atraso_injecao: {people:['Tiago Reis'], emails:['tiago.reis@igreenenergy.com.br']},
+      faturamento: {people:['Não definido'], emails:[]}
+    }
+  },
+  andressa: {
+    label: 'Equipe Andressa',
+    lead: 'andressa.borba@igreenenergy.com.br',
+    fornecedoras: ['FIT','SOLATIO','GEDISA','SUNNE','GV','EDP','MATRIX','BC','ORIGO','RESERVA'],
+    setores: {
+      boletos_api: {people:['Stella Resende','Ghabriel Costa'], emails:['stella.resende@igreenenergy.com.br','ghabriel.costa@igreenenergy.com.br']},
+      bases: {people:['Maria Eduarda Nóbrega','Matheus Teodoro'], emails:['mariaeduarda.nobrega@igreenenergy.com.br','matheus.teodoro@igreenenergy.com.br']},
+      api_leads: {people:['Ana Laura Lima'], emails:['analaura.lima@igreenenergy.com.br']},
+      devolutivas: {people:['Ana Luiza Martins','Ana Clara Barros'], emails:['analuiza.martins@igreenenergy.com.br','annaclara.barros@igreenenergy.com.br']},
+      atraso_injecao: {people:['Roberto Marques'], emails:['roberto.marques@igreenenergy.com.br']},
+      faturamento: {people:['Ícaro Silva','Ghabriel Costa'], emails:['icaro.silva@igreenenergy.com.br','ghabriel.costa@igreenenergy.com.br']}
+    }
+  }
+};
+
+// Definição única das abas por setor — vale para as duas equipes (a menos que "onlyTeam" limite a uma só)
+const SETOR_DEFS = {
+  boletos_api: {label:'Boletos / API', tabs:[
+    {key:'erros', label:'Erros de API', sub:'erros_api'},
+    {key:'boletos', label:'Boletos Faltantes', sub:'boletos_faltantes'},
+    {key:'clickups', label:'ClickUps Abertos', sub:'clickups_abertos'},
+    {key:'analise', label:'Análise Boletos', sub:'analise_boletos', kind:'analise'}
+  ]},
+  bases: {label:'Bases', tabs:[
+    {key:'conciliadas', label:'Bases Conciliadas', sub:'conciliadas', kind:'conciliadas'},
+    {key:'cancelados', label:'Clientes Cancelados', sub:'cancelados'},
+    {key:'clickups', label:'ClickUps Abertos', sub:'clickups_abertos'}
+  ]},
+  finalizados: {label:'Finalizados', onlyTeam:'paulo', tabs:[
+    {key:'finalizados', label:'Clientes Finalizados', sub:'finalizados'},
+    {key:'migrados', label:'Clientes Migrados', sub:'migrados'}
+  ]},
+  api_leads: {label:'API Leads', onlyTeam:'andressa', tabs:[
+    {key:'leads', label:'API Leads', sub:'leads', kind:'leads'}
+  ]},
+  devolutivas: {label:'Devolutivas', tabs:[
+    {key:'devolutivas', label:'Devolutivas', sub:'devolutivas'},
+    {key:'clickup', label:'ClickUp Devolutivas', sub:'clickup'},
+    {key:'demandas', label:'Demandas Extras', sub:'demandas_extras'}
+  ]},
+  atraso_injecao: {label:'Atraso de Injeção', tabs:[
+    {key:'atual', label:'Clientes em Atraso', sub:'clientes_atraso'},
+    {key:'entrando', label:'Entrando em Atraso', sub:'entrando_atraso'},
+    {key:'qualidade', label:'Qualidade de Injeção', sub:'qualidade'},
+    {key:'represados', label:'Clientes Represados', sub:'represados'}
+  ]},
+  faturamento: {label:'Faturamento', tabs:[
+    {key:'geral', label:'Faturamento', sub:'geral'}
+  ]}
+};
+
+function teamsForSetor(setorKey){
+  const def = SETOR_DEFS[setorKey];
+  return def.onlyTeam ? [def.onlyTeam] : Object.keys(TEAMS);
+}
+function pathFor(team, setorKey, sub){ return `equipes/${team}/${setorKey}/${sub}/registros`; }
+
+/* ============================================================
+   3. RESOLUÇÃO DE ACESSO
+   ============================================================ */
+const ACCESS_PASSWORD = "iGreen2026"; // senha única de visualização — troque aqui quando quiser
+let ELEVATED = null; // preenchido quando alguém faz login como responsável de área (só pra liberar upload)
+
+function resolveAccess(email){
+  email = (email||'').toLowerCase().trim();
+  const isSuper = SUPERADMINS.includes(email);
+  const access = {email, isSuper, teams:{}};
+  Object.keys(TEAMS).forEach(teamKey=>{
+    const team = TEAMS[teamKey];
+    const isLead = team.lead === email;
+    let setores = [];
+    if(isSuper || isLead){
+      setores = Object.keys(team.setores);
+    } else {
+      setores = Object.keys(team.setores).filter(sk => team.setores[sk].emails.includes(email));
+    }
+    if(isSuper || isLead || setores.length){
+      access.teams[teamKey] = {lead:isLead, setores};
+    }
+  });
+  return access;
+}
+function findDisplayName(email){
+  email=(email||'').toLowerCase();
+  for(const tk in TEAMS){
+    for(const sk in TEAMS[tk].setores){
+      const s = TEAMS[tk].setores[sk];
+      const idx = s.emails.indexOf(email);
+      if(idx>-1) return s.people[idx];
+    }
+  }
+  return email;
+}
+function canUpload(teamKey, setorKey){
+  if(!ELEVATED) return false;
+  if(ELEVATED.isSuper) return true;
+  const teamAccess = ELEVATED.teams[teamKey];
+  if(!teamAccess) return false;
+  return teamAccess.lead || teamAccess.setores.includes(setorKey);
+}
+
+/* ============================================================
+   4. GATE DE SENHA (visualização) + LOGIN DE RESPONSÁVEL (inline no upload)
+   ============================================================ */
+function doGateLogin(){
+  const pass = document.getElementById('gate-pass').value;
+  const err = document.getElementById('gate-err');
+  if(pass !== ACCESS_PASSWORD){
+    err.textContent = 'Senha incorreta.';
+    err.style.display='block';
+    return;
+  }
+  sessionStorage.setItem('igreen_gate','ok');
+  enterApp();
+}
+function doGateLogout(){
+  sessionStorage.removeItem('igreen_gate');
+  auth.signOut();
+  ELEVATED = null;
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+function enterApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  buildNav();
+  goPage('inicio');
+}
+function doInlineRespLogin(inputId){
+  const email = document.getElementById(inputId+'-email').value.trim();
+  const pass = document.getElementById(inputId+'-pass').value;
+  const err = document.getElementById(inputId+'-err');
+  err.style.display='none';
+  auth.signInWithEmailAndPassword(email, pass).catch(e=>{
+    err.textContent = 'E-mail ou senha incorretos.';
+    err.style.display='block';
+  });
+}
+function doRespLogout(){ auth.signOut(); }
+
+auth.onAuthStateChanged(user=>{
+  if(user && user.email){
+    ELEVATED = resolveAccess(user.email);
+    ELEVATED.displayName = findDisplayName(user.email);
+  } else {
+    ELEVATED = null;
+  }
+  if(sessionStorage.getItem('igreen_gate')==='ok'){
+    goPage(CURRENT_PAGE || 'inicio'); // re-renderiza pra mostrar/ocultar upload conforme login
+  }
+});
+if(sessionStorage.getItem('igreen_gate')==='ok'){ enterApp(); }
+
+/* ============================================================
+   5. NAVEGAÇÃO — unificada, sem divisão por equipe (exceto início)
+   ============================================================ */
+let CURRENT_PAGE = null;
+
+function buildNav(){
+  const nav = document.getElementById('nav');
+  let html = `<button class="nav-btn" onclick="goPage('inicio')" id="nb-inicio">🏠 Início</button>`;
+  Object.keys(SETOR_DEFS).forEach(sk=>{
+    const setor = SETOR_DEFS[sk];
+    html += `<div class="nav-sec">${setor.label}</div>`;
+    setor.tabs.forEach(tab=>{
+      const pageId = sk+'__'+tab.key;
+      html += `<button class="nav-btn" onclick="goPage('${pageId}')" id="nb-${pageId}">${tab.label}</button>`;
+    });
+  });
+  nav.innerHTML = html;
+}
+function markActive(pageId){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById('nb-'+pageId);
+  if(btn) btn.classList.add('active');
+}
+function findTabDef(pageId){
+  const [setorKey, tabKey] = pageId.split('__');
+  const setor = SETOR_DEFS[setorKey];
+  if(!setor) return null;
+  const tab = setor.tabs.find(t=>t.key===tabKey);
+  if(!tab) return null;
+  return {setorKey, tab, setorLabel:setor.label};
+}
+
+/* ============================================================
+   6. ROUTER
+   ============================================================ */
+let ACTIVE_LISTENERS = [];
+function clearListeners(){ ACTIVE_LISTENERS.forEach(u=>u()); ACTIVE_LISTENERS=[]; }
+
+function goPage(pageId){
+  clearListeners();
+  CURRENT_PAGE = pageId;
+  markActive(pageId);
+  if(pageId === 'inicio'){ renderHome(); return; }
+  const found = findTabDef(pageId);
+  const c = document.getElementById('page-container');
+  if(!found){ c.innerHTML = '<div class="placeholder">Página não encontrada.</div>'; return; }
+  const {setorKey, tab, setorLabel} = found;
+  const teams = teamsForSetor(setorKey);
+  if(tab.kind === 'conciliadas'){
+    renderConciliadasPage(setorKey, tab, setorLabel, teams);
+  } else {
+    renderTabPage(setorKey, tab, setorLabel, teams);
+  }
+}
+
+/* ============================================================
+   7. UPLOAD (upload em si OU login inline de responsável)
+   ============================================================ */
+function uploadBoxHTML(teamKey, setorKey, path, inputId){
+  if(canUpload(teamKey, setorKey)){
+    return `<div class="upload-box">
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Enviar planilha (.xlsx / .csv) — logado como ${ELEVATED.displayName}</div>
+        <input type="file" id="${inputId}" accept=".xlsx,.xls,.csv">
+      </div>
+      <button class="btn btn-primary" onclick="handleUpload('${inputId}','${path}')">Enviar para o painel</button>
+      <span class="tag" id="${inputId}-status"></span>
+      <button class="btn" style="margin-left:auto;font-size:10px" onclick="doRespLogout()">sair do modo responsável</button>
+    </div>`;
+  }
+  return `<div class="upload-box">
+    <div style="flex:1;min-width:240px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">É responsável por essa área? Entre para poder enviar planilhas aqui.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input class="f-input" style="width:210px" type="email" id="${inputId}-email" placeholder="seu.email@igreenenergy.com.br">
+        <input class="f-input" style="width:130px" type="password" id="${inputId}-pass" placeholder="senha">
+        <button class="btn btn-primary" onclick="doInlineRespLogin('${inputId}')">Entrar</button>
+      </div>
+      <div class="resp-err" id="${inputId}-err"></div>
+    </div>
+  </div>`;
+}
+
+function handleUpload(inputId, path){
+  const input = document.getElementById(inputId);
+  const status = document.getElementById(inputId+'-status');
+  if(!input.files.length){ status.textContent='Escolha um arquivo primeiro.'; return; }
+  status.textContent = 'Lendo arquivo...';
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(!rows.length){ status.textContent='Planilha vazia.'; return; }
+      status.textContent = `Enviando ${rows.length} linhas...`;
+      const col = db.collection(path);
+      const old = await col.get();
+      let batch = db.batch(); let opCount = 0;
+      for(const d of old.docs){ batch.delete(d.ref); opCount++; if(opCount>=400){ await batch.commit(); batch=db.batch(); opCount=0; } }
+      if(opCount>0){ await batch.commit(); batch=db.batch(); opCount=0; }
+      for(const row of rows){
+        batch.set(col.doc(), {...row, _uploadedAt: firebase.firestore.FieldValue.serverTimestamp(), _uploadedBy: ELEVATED ? ELEVATED.email : 'desconhecido'});
+        opCount++;
+        if(opCount>=400){ await batch.commit(); batch=db.batch(); opCount=0; }
+      }
+      if(opCount>0) await batch.commit();
+      status.textContent = `${rows.length} linhas enviadas com sucesso.`;
+    }catch(err){
+      console.error(err);
+      status.textContent = 'Erro ao enviar: '+err.message;
+    }
+  };
+  reader.readAsArrayBuffer(input.files[0]);
+}
+
+/* ============================================================
+   8. HELPERS GENÉRICOS
+   ============================================================ */
+function detectField(row, candidates){
+  const keys = Object.keys(row);
+  for(const cand of candidates){
+    const hit = keys.find(k=>k.toLowerCase().includes(cand));
+    if(hit) return hit;
+  }
+  return null;
+}
+function barsHTML(counts){
+  const keys = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const max = Math.max(...Object.values(counts), 1);
+  return keys.map(k=>{
+    const pct = Math.round((counts[k]/max)*100);
+    return `<div class="bar-row"><div class="lbl">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div class="bar-val">${counts[k]}</div></div>`;
+  }).join('');
+}
+function tableHTML(rows, wrapId){
+  if(!rows.length) return `<div class="placeholder">Nenhum dado ainda. Envie a planilha acima para começar.</div>`;
+  const cols = Object.keys(rows[0]).filter(k=>!k.startsWith('_')).slice(0,10);
+  let html = '<table><thead><tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr></thead><tbody>';
+  rows.slice(0,300).forEach(r=>{
+    html += '<tr>'+cols.map(c=>`<td>${r[c]!==undefined?r[c]:''}</td>`).join('')+'</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+/* ============================================================
+   9. VISÃO COMBINADA + SPLIT — abas genéricas (erros, boletos, devolutivas, etc.)
+   ============================================================ */
+function renderTabPage(setorKey, tab, setorLabel, teams){
+  const c = document.getElementById('page-container');
+  c.innerHTML = `
+    <div class="pg-title">${tab.label}</div>
+    <div class="pg-sub">// ${setorLabel} · visão geral combinada ${teams.length>1?'(Equipe Paulo + Equipe Andressa)':''}</div>
+    <div id="tab-overview"><div class="placeholder">Carregando...</div></div>
+    <div style="margin:26px 0 14px" class="section-hd">Por equipe<span class="line"></span></div>
+    <div class="team-split" id="tab-split"></div>`;
+
+  const rowsByTeam = {};
+  teams.forEach(team=>{
+    const path = pathFor(team, setorKey, tab.sub);
+    const unsub = db.collection(path).limit(3000).onSnapshot(snap=>{
+      rowsByTeam[team] = snap.docs.map(d=>d.data());
+      drawTabPage(setorKey, tab, teams, rowsByTeam);
+    }, err=>{
+      document.getElementById('tab-overview').innerHTML = '<div class="placeholder">Erro: '+err.message+'</div>';
+    });
+    ACTIVE_LISTENERS.push(unsub);
+  });
+}
+
+function drawTabPage(setorKey, tab, teams, rowsByTeam){
+  const combined = teams.reduce((acc,t)=>acc.concat(rowsByTeam[t]||[]), []);
+  const overviewEl = document.getElementById('tab-overview');
+  const splitEl = document.getElementById('tab-split');
+  if(!overviewEl || !splitEl) return; // usuário já saiu da página
+
+  // KPIs extras para Análise Boletos e API Leads
+  let extraKpis = '';
+  if(tab.kind === 'analise' && combined.length){
+    const statusField = detectField(combined[0], ['status','situa','resultado','classificac']);
+    let movidos=0, ok=0;
+    if(statusField){
+      combined.forEach(r=>{
+        const v = String(r[statusField]||'').toLowerCase();
+        if(v.includes('mov')) movidos++;
+        else if(v.includes('ok')||v.includes('correto')) ok++;
+      });
+    }
+    extraKpis = `
+      <div class="kpi"><div class="v">${combined.length.toLocaleString('pt-BR')}</div><div class="l">boletos analisados</div></div>
+      <div class="kpi"><div class="v">${statusField?movidos.toLocaleString('pt-BR'):'—'}</div><div class="l">boletos movidos</div></div>
+      <div class="kpi"><div class="v">${statusField?ok.toLocaleString('pt-BR'):'—'}</div><div class="l">boletos ok</div></div>`;
+  }
+  if(tab.kind === 'leads' && combined.length){
+    const statusField = detectField(combined[0], ['status','situa','resultado']);
+    let corrigidos=0, validados=0;
+    if(statusField){
+      combined.forEach(r=>{
+        const v = String(r[statusField]||'').toLowerCase();
+        if(v.includes('corrig')) corrigidos++;
+        if(v.includes('valid')) validados++;
+      });
+    }
+    extraKpis = `
+      <div class="kpi"><div class="v">${combined.length.toLocaleString('pt-BR')}</div><div class="l">leads recebidos</div></div>
+      <div class="kpi"><div class="v">${statusField?corrigidos.toLocaleString('pt-BR'):'—'}</div><div class="l">leads corrigidos</div></div>
+      <div class="kpi"><div class="v">${statusField?validados.toLocaleString('pt-BR'):'—'}</div><div class="l">leads validados</div></div>`;
+  }
+
+  const fField = combined.length ? detectField(combined[0], ['fornecedor','supplier']) : null;
+  const byFornecedora = {};
+  combined.forEach(r=>{
+    const f = fField ? (r[fField]||'—') : '—';
+    byFornecedora[f] = (byFornecedora[f]||0)+1;
+  });
+
+  overviewEl.innerHTML = `
+    <div class="kpi-row">
+      ${extraKpis || `<div class="kpi"><div class="v">${combined.length.toLocaleString('pt-BR')}</div><div class="l">registros combinados</div></div>`}
+      ${teams.map(t=>`<div class="kpi"><div class="v">${(rowsByTeam[t]||[]).length.toLocaleString('pt-BR')}</div><div class="l">${TEAMS[t].label}</div></div>`).join('')}
+    </div>
+    ${fField ? `<div class="section-hd" style="margin-top:6px">Distribuição por fornecedora<span class="line"></span></div><div>${barsHTML(byFornecedora)}</div>` : ''}`;
+
+  const splitHtml = teams.map(team=>{
+    const rows = rowsByTeam[team] || [];
+    const inputId = 'up-'+setorKey+'-'+tab.key+'-'+team;
+    const path = pathFor(team, setorKey, tab.sub);
+    return `<div class="team-block">
+      <div class="team-block-hd"><span>${TEAMS[team].label}</span><span class="tag">${rows.length} registros</span></div>
+      ${uploadBoxHTML(team, setorKey, path, inputId)}
+      <div class="toolbar">
+        <input class="s-input" type="text" id="q-${inputId}" placeholder="Buscar..." oninput="filterTeamTable('${inputId}')">
+      </div>
+      <div class="tbl-wrap"><div id="tbl-${inputId}">${tableHTML(rows)}</div></div>
+    </div>`;
+  }).join('');
+  splitEl.innerHTML = splitHtml;
+
+  teams.forEach(team=>{
+    const inputId = 'up-'+setorKey+'-'+tab.key+'-'+team;
+    window['_rows_'+inputId] = rowsByTeam[team] || [];
+  });
+}
+
+function filterTeamTable(inputId){
+  const q = (document.getElementById('q-'+inputId).value||'').toLowerCase();
+  const all = window['_rows_'+inputId] || [];
+  const filtered = q ? all.filter(r=>JSON.stringify(r).toLowerCase().includes(q)) : all;
+  const el = document.getElementById('tbl-'+inputId);
+  if(el) el.innerHTML = tableHTML(filtered);
+}
+
+/* ============================================================
+   10. BASES CONCILIADAS — combinado + cards por equipe/fornecedora
+   ============================================================ */
+function renderConciliadasPage(setorKey, tab, setorLabel, teams){
+  const c = document.getElementById('page-container');
+  c.innerHTML = `
+    <div class="pg-title">Bases Conciliadas</div>
+    <div class="pg-sub">// visão geral combinada e detalhamento por fornecedora e por equipe</div>
+    <div id="conc-overview"><div class="placeholder">Carregando...</div></div>
+    <div style="margin:26px 0 14px" class="section-hd">Por equipe<span class="line"></span></div>
+    <div class="team-split" id="conc-split"></div>`;
+
+  const rowsByTeam = {};
+  teams.forEach(team=>{
+    const path = pathFor(team, setorKey, tab.sub);
+    const unsub = db.collection(path).limit(5000).onSnapshot(snap=>{
+      rowsByTeam[team] = snap.docs.map(d=>d.data());
+      drawConciliadas(setorKey, tab, teams, rowsByTeam);
+    }, err=>{
+      document.getElementById('conc-overview').innerHTML = '<div class="placeholder">Erro: '+err.message+'</div>';
+    });
+    ACTIVE_LISTENERS.push(unsub);
+  });
+}
+
+function drawConciliadas(setorKey, tab, teams, rowsByTeam){
+  const overviewEl = document.getElementById('conc-overview');
+  const splitEl = document.getElementById('conc-split');
+  if(!overviewEl || !splitEl) return;
+
+  const combined = teams.reduce((acc,t)=>acc.concat(rowsByTeam[t]||[]), []);
+  const fField = combined.length ? detectField(combined[0], ['fornecedor','supplier']) : null;
+  const divField = combined.length ? detectField(combined[0], ['diverg']) : null;
+  const byFornecedora = {};
+  let divergCount = 0;
+  combined.forEach(r=>{
+    const f = fField ? (r[fField]||'—') : '—';
+    byFornecedora[f] = (byFornecedora[f]||0)+1;
+    if(divField){
+      const v = String(r[divField]||'').toLowerCase();
+      if(v && v!=='ok' && v!=='0' && v!=='false' && v!=='não' && v!=='nao') divergCount++;
+    }
+  });
+
+  overviewEl.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi"><div class="v">${combined.length.toLocaleString('pt-BR')}</div><div class="l">clientes conciliados (combinado)</div></div>
+      <div class="kpi"><div class="v">${Object.keys(byFornecedora).length}</div><div class="l">fornecedoras</div></div>
+      <div class="kpi"><div class="v" style="color:${divergCount?'var(--red)':'var(--green)'}">${divField?divergCount.toLocaleString('pt-BR'):'—'}</div><div class="l">divergências identificadas</div></div>
+      ${teams.map(t=>`<div class="kpi"><div class="v">${(rowsByTeam[t]||[]).length.toLocaleString('pt-BR')}</div><div class="l">${TEAMS[t].label}</div></div>`).join('')}
+    </div>
+    ${fField ? `<div class="section-hd">Distribuição combinada por fornecedora<span class="line"></span></div><div style="margin-bottom:6px">${barsHTML(byFornecedora)}</div>` : ''}`;
+
+  const splitHtml = teams.map(team=>{
+    const rows = rowsByTeam[team] || [];
+    const inputId = 'up-conc-'+team;
+    const path = pathFor(team, setorKey, tab.sub);
+    const tField = rows.length ? detectField(rows[0], ['fornecedor','supplier']) : null;
+    const byF = {};
+    rows.forEach(r=>{ const f = tField?(r[tField]||'—'):'—'; byF[f]=(byF[f]||0)+1; });
+    const fornecedoras = Object.keys(byF).sort((a,b)=>byF[b]-byF[a]);
+    return `<div class="team-block">
+      <div class="team-block-hd"><span>${TEAMS[team].label}</span><span class="tag">${rows.length} clientes</span></div>
+      ${uploadBoxHTML(team, setorKey, path, inputId)}
+      <div id="conc-cards-${team}">
+        <div class="card-grid">
+          ${fornecedoras.map(f=>`<div class="f-card" onclick="openConciliadaDetail('${team}','${encodeURIComponent(f)}')">
+            <div class="name">${f}</div><div class="n">${byF[f]}</div><div class="l">clientes</div>
+          </div>`).join('') || '<div class="placeholder">Nenhum dado ainda.</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  splitEl.innerHTML = splitHtml;
+
+  teams.forEach(team=>{
+    window['_concRows_'+team] = rowsByTeam[team] || [];
+    window['_concField_'+team] = (rowsByTeam[team]||[]).length ? detectField(rowsByTeam[team][0], ['fornecedor','supplier']) : null;
+  });
+}
+
+function openConciliadaDetail(team, fornecedoraEnc){
+  const fornecedora = decodeURIComponent(fornecedoraEnc);
+  const rows = window['_concRows_'+team] || [];
+  const fField = window['_concField_'+team];
+  const filtered = fField ? rows.filter(r=>String(r[fField]||'—')===fornecedora) : rows;
+  const el = document.getElementById('conc-cards-'+team);
+  if(!el) return;
+  el.innerHTML = `<button class="back-btn" onclick="goPage(CURRENT_PAGE)">← Voltar para os cards</button>
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">${fornecedora}</div>
+    <div class="tag" style="margin-bottom:10px;display:block">${filtered.length} clientes</div>
+    <div class="tbl-wrap">${tableHTML(filtered)}</div>`;
+}
+
+/* ============================================================
+   11. INÍCIO — banner, acesso rápido e ranking por equipe
+   ============================================================ */
+const RANKING_SOURCES = [
+  {setorKey:'atraso_injecao', sub:'clientes_atraso', weight:1},
+  {setorKey:'atraso_injecao', sub:'entrando_atraso', weight:2},
+  {setorKey:'atraso_injecao', sub:'represados', weight:4},
+  {setorKey:'bases', sub:'cancelados', weight:3},
+  {setorKey:'boletos_api', sub:'erros_api', weight:3}
+];
+
+function renderHome(){
+  const c = document.getElementById('page-container');
+  let quickHtml = '';
+  Object.keys(SETOR_DEFS).forEach(sk=>{
+    const setor = SETOR_DEFS[sk];
+    setor.tabs.forEach(tab=>{
+      quickHtml += `<button class="quick-btn" onclick="goPage('${sk}__${tab.key}')">
+        <div class="lbl">${tab.label}</div><div class="setor">${setor.label}</div>
+      </button>`;
+    });
+  });
+
+  c.innerHTML = `
+    <div class="home-banner">
+      <div>
+        <div class="t">🌿 Monitoramento de Fornecedoras</div>
+        <div class="s">Visão executiva · dados em tempo real via Firestore</div>
+      </div>
+      <button class="btn btn-primary" onclick="loadRanking()">↻ Atualizar ranking</button>
+    </div>
+    <div class="section-hd">Acesso rápido<span class="line"></span></div>
+    <div class="quick-grid">${quickHtml}</div>
+    <div class="section-hd">🏆 Ranking de fornecedoras — por equipe<span class="line"></span></div>
+    <div class="tag" style="display:block;margin-bottom:14px">Menor pontuação = melhor desempenho · some divergências, atrasos e cancelamentos</div>
+    <div class="rank-cols" id="rank-cols"><div class="placeholder">Carregando ranking...</div></div>`;
+  loadRanking();
+}
+
+async function fetchCountsByFornecedora(team, setorKey, sub){
+  const path = pathFor(team, setorKey, sub);
+  try{
+    const snap = await db.collection(path).limit(5000).get();
+    const rows = snap.docs.map(d=>d.data());
+    if(!rows.length) return {};
+    const fField = detectField(rows[0], ['fornecedor','supplier']);
+    const counts = {};
+    rows.forEach(r=>{
+      const f = fField ? (r[fField]||'').toString().toUpperCase() : '';
+      if(f) counts[f] = (counts[f]||0)+1;
+    });
+    return counts;
+  }catch(e){ return {}; }
+}
+
+async function loadRanking(){
+  const el = document.getElementById('rank-cols');
+  if(!el) return;
+  el.innerHTML = '<div class="placeholder">Carregando ranking...</div>';
+
+  const teamScores = {};
+  for(const team of Object.keys(TEAMS)){
+    const scores = {};
+    TEAMS[team].fornecedoras.forEach(f=>scores[f]=0);
+    for(const src of RANKING_SOURCES){
+      const counts = await fetchCountsByFornecedora(team, src.setorKey, src.sub);
+      TEAMS[team].fornecedoras.forEach(f=>{
+        const hit = Object.keys(counts).find(k=>k.includes(f) || f.includes(k));
+        if(hit) scores[f] += counts[hit]*src.weight;
+      });
+    }
+    teamScores[team] = TEAMS[team].fornecedoras
+      .map(f=>({nome:f, score:scores[f]}))
+      .sort((a,b)=>a.score-b.score);
+  }
+
+  el.innerHTML = Object.keys(TEAMS).map(team=>`
+    <div>
+      <div class="rank-col-title">${TEAMS[team].label}</div>
+      ${teamScores[team].map((r,i)=>`<div class="rank-row"><div class="rank-pos">${i+1}º</div><div class="rank-name">${r.nome}</div><div class="rank-score">${r.score}</div></div>`).join('')}
+    </div>`).join('');
+}
+</script>
+</body>
+</html>
